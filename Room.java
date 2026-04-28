@@ -33,6 +33,6 @@ public class Room {
 
     //@Override
     public String toString() {
-        return "Room[" + room_number + " | " + type + " | Floor " + floor + " | $" + rate + "/night | " + status + "]";
+        return "Room[" + room_number + "  " + type + "  Floor " + floor + " " + rate + "/night  " + status + "]";
     }
 }
