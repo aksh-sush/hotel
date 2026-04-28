@@ -26,12 +26,6 @@ public class Invoice {
         this.extras += amount;
         System.out.println( amount + "Total extras: " + extras);
     }
-
-    public void applyDiscount(double discount) {
-        this.total -= discount;
-        System.out.println( + discount + "New total: " + total);
-    }
-
     // Getters
     public String getInvoiceid() { return invoiceid; }
     public double getTotal()     { return total; }
