@@ -1,0 +1,164 @@
+                                                  
+  1. What is each class in system design terms?                                                                           
+                                                                                                                          
+  Each class represents a real-world entity (this is the core OOP principle — model the world as objects).                
+                                                                                                                          
+  ┌──────────────┬───────────────────────────────────────────────┐
+  │    Class     │                What it models                 │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ Room         │ A physical asset the hotel owns               │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ Booking      │ A transaction/event linking a guest to a room │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ Guest        │ A person interacting with the system          │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ Invoice      │ A financial record of a booking               │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ HotelManager │ An operator who manages rooms                 │
+  ├──────────────┼───────────────────────────────────────────────┤
+  │ HotelSystem  │ The entry point that orchestrates everything  │
+  └──────────────┴───────────────────────────────────────────────┘
+
+  ---
+  2. Encapsulation — every class does this
+
+  In every class, all variables are private:
+  // Room.java
+  private int room_number;
+  private String status;
+  And accessed only through public getters/setters:
+  public String getStatus()  { return status; }
+  public void setRate(double rate) { this.rate = rate; }
+  Why: Outside code can't accidentally corrupt internal state. HotelSystem can't directly set room.status = "broken" — it
+  must go through room.updateStatus(...). This is data hiding.
+
+  ---
+  3. What depends on what (Dependency Map)
+
+  HotelSystem
+     ├── uses HotelManager   → to add rooms and find available ones
+     ├── uses Guest          → to register and make a booking
+     ├── uses Room           → to check availability, update status
+     ├── uses Booking        → to hold the reservation
+     └── uses Invoice        → to calculate final bill
+
+  Guest
+     └── owns List<Booking>  → a guest can have many bookings (composition)
+
+  HotelManager
+     └── owns List<Room>     → a manager manages many rooms (composition)
+
+  Invoice
+     └── references bookingid → ties back to the Booking (association)
+
+  Booking
+     └── references guestid, roomnumber → links Guest and Room by ID
+
+  The key word here is association vs composition:
+  - Guest has a List<Booking> — if the guest is deleted, their bookings go with them. That's composition (strong
+  ownership).
+  - Booking only stores guestid (a String), not the Guest object itself. That's a loose association — intentional for
+  scale (you don't want to load the whole Guest object just to read a booking).
+
+  ---
+  4. Inheritance — what's inherited and why
+
+  Your classes don't inherit from each other — and that is correct design. Room is not a type of Guest. They are unrelated
+   entities.
+
+  However, all Java classes automatically inherit from Object. That's why toString() exists in every class — it's defined
+  in Object and you override it:
+
+  // Booking.java
+  @Override
+  public String toString() {
+      return "Booking[" + booking_id + " | Guest: " + guestid + ...]
+  }
+
+  // Room.java — note the @Override is commented out, but it still overrides
+  public String toString() {
+      return "Room[" + room_number + " | " + type + ...]
+  }
+
+  Why override toString(): When you write System.out.println(room), Java internally calls room.toString(). Without
+  overriding, it would print something useless like Room@7852e922. You replaced that default behaviour with meaningful
+  output.
+
+  ---
+  5. Polymorphism — where it shows up
+
+  Polymorphism means same method name, different behaviour depending on the object.
+
+  You have it in toString() across all classes:
+  System.out.println(room);     // calls Room's toString()
+  System.out.println(booking);  // calls Booking's toString()
+  System.out.println(guest);    // calls Guest's toString()
+  Same method name toString(), three completely different outputs. That's runtime polymorphism (method overriding).
+
+  You also have a mild form in calculateCost — right now it's one formula, but if you later create WeekendBooking or
+  GroupBooking that extends Booking, each could override calculateCost() with its own pricing logic. The foundation is
+  already set up for that.
+
+  ---
+  6. Constructors — why every class has one
+
+  // Guest.java
+  public Guest(String guestid, String name, String phno, String email) {
+      this.guestid = guestid;
+      ...
+      this.bookings = new ArrayList<>();  // initialized here, not passed in
+  }
+
+  The constructor forces correct object creation — you can't create a Guest without a name or ID. bookings is initialized
+  empty inside the constructor because a new guest starts with no bookings — that's a business rule baked into the class.
+
+  ---
+  7. The flow in HotelSystem — why this order matters
+
+  // HotelSystem.java
+  HotelManager hotelManager = new HotelManager("MGR01");  // 1. setup
+  hotelManager.addRoom(...);                               // 2. add asset
+
+  Guest guest = new Guest(...);                            // 3. register person
+
+  Room room = hotelManager.findAvailableRoom("deluxe");    // 4. query
+  room.isAvailable(...);                                   // 5. check state
+
+  Booking booking = new Booking(...);                      // 6. create transaction
+  guest.makeBooking(booking);                              // 7. link to guest
+  room.updateStatus("occupied");                           // 8. update asset state
+
+  double roomcost = booking.calculateCost(room.getRate()); // 9. compute
+  Invoice invoice = new Invoice(...);                      // 10. generate bill
+
+  This order reflects object lifecycle — you can't make a booking before a room exists, you can't generate an invoice
+  before a booking exists. This is temporal dependency, a system design concept.
+
+  ---
+  Summary of OOP concepts used
+
+  ┌───────────────────────┬──────────────────────────────────────────────────────────────────────────────────────┐
+  │        Concept        │                                  Where in your code                                  │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Encapsulation         │ private fields + getters/setters in every class                                      │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Abstraction           │ Each class hides its internal logic (calculateCost hides the date math)              │
+  ┌───────────────────────┬──────────────────────────────────────────────────────────────────────────────────────┐
+  │        Concept        │                                  Where in your code                                  │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Encapsulation         │ private fields + getters/setters in every class                                      │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Abstraction           │ Each class hides its internal logic (calculateCost hides the date math)              │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Inheritance           │ All classes inherit Object; toString() is overridden                                 │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Polymorphism          │ toString() behaves differently per class                                             │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Composition           │ Guest owns List<Booking>, HotelManager owns List<Room>                               │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Association           │ Booking references guestid and roomnumber by value, not by object                    │
+  ├───────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+  │ Single Responsibility │ Each class does one job — Invoice only handles billing, Room only handles room state │
+  └───────────────────────┴──────────────────────────────────────────────────────────────────────────────────────┘
+
+  The design is correct for prototyping and will scale — when you add more guests or room types, you add objects, not rewrite logic.
